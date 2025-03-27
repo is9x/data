@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title> Updated 2D Platformer</title>
+  <title>Super Fun 2D Platformer</title>
   <style>
     html, body {
       margin: 0;
@@ -18,7 +18,6 @@
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
-  <script src="https://unpkg.com/gifler@0.1.0/gifler.min.js"></script>
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -26,22 +25,23 @@
     canvas.height = window.innerHeight;
 
     const playerAnimations = {
-      idle: '/data/__Idle.gif',
-      run: '/data/__Run.gif',
-      jump: '/data/__Jump.gif',
-      attack: '/data/__Attack.gif',
-      death: '/data/__Death.gif'
+      idle: "https://raw.githubusercontent.com/is9x/data/refs/heads/main/__Idle.gif",
+      run: "https://raw.githubusercontent.com/is9x/data/refs/heads/main/__Run.gif",
+      jump: "https://raw.githubusercontent.com/is9x/data/refs/heads/main/__Jump.gif",
+      fall: "https://raw.githubusercontent.com/is9x/data/refs/heads/main/__Jump.gif" // Reuse jump for falling
     };
 
     class Player {
       constructor(x, y) {
         this.x = x;
         this.y = y;
+        this.width = 100;
+        this.height = 100;
         this.vx = 0;
         this.vy = 0;
-        this.speed = 300;
-        this.jumpPower = -700;
-        this.gravity = 2000;
+        this.speed = 500; // SPEED BOOSTED
+        this.jumpPower = -900; // JUMP HIGHER
+        this.gravity = 2500; // FALL BACK FASTER
         this.onGround = false;
         this.currentAnimation = 'idle';
         this.animations = {};
@@ -49,28 +49,27 @@
       }
 
       loadAnimations() {
-        for (const [key, src] of Object.entries(playerAnimations)) {
-          this.animations[key] = gifler(src);
+        for (const key in playerAnimations) {
+          const img = new Image();
+          img.src = playerAnimations[key];
+          this.animations[key] = img;
         }
       }
 
       setAnimation(animation) {
         if (this.currentAnimation !== animation) {
           this.currentAnimation = animation;
-          this.animations[this.currentAnimation].reset();
         }
       }
 
       update(delta, platforms) {
+        this.vx = 0; // Reset velocity every frame
+
         if (input.left) {
           this.vx = -this.speed;
-          this.setAnimation('run');
-        } else if (input.right) {
+        } 
+        if (input.right) {
           this.vx = this.speed;
-          this.setAnimation('run');
-        } else {
-          this.vx = 0;
-          this.setAnimation('idle');
         }
 
         if (input.up && this.onGround) {
@@ -79,7 +78,7 @@
           this.setAnimation('jump');
         }
 
-        this.vy += this.gravity * delta;
+        this.vy += this.gravity * delta; // Gravity applied here
 
         this.x += this.vx * delta;
         this.y += this.vy * delta;
@@ -87,22 +86,33 @@
         this.onGround = false;
         for (let plat of platforms) {
           if (this.x < plat.x + plat.width &&
-              this.x + 50 > plat.x &&
+              this.x + this.width > plat.x &&
               this.y < plat.y + plat.height &&
-              this.y + 50 > plat.y) {
-            if (this.vy > 0 && this.y + 50 - plat.y < 40) {
-              this.y = plat.y - 50;
+              this.y + this.height > plat.y) {
+            if (this.vy > 0 && this.y + this.height - plat.y < 40) {
+              this.y = plat.y - this.height;
               this.vy = 0;
               this.onGround = true;
-              this.setAnimation('idle');
             }
           }
         }
 
+        // Fix animation logic
+        if (!this.onGround) {
+          this.setAnimation(this.vy > 0 ? 'fall' : 'jump');
+        } else {
+          if (Math.abs(this.vx) > 10) {
+            this.setAnimation('run');
+          } else {
+            this.setAnimation('idle');
+          }
+        }
+
+        // Prevent going out of bounds
         if (this.x < 0) this.x = 0;
-        if (this.x + 50 > canvas.width) this.x = canvas.width - 50;
-        if (this.y + 50 > canvas.height) {
-          this.y = canvas.height - 50;
+        if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+        if (this.y + this.height > canvas.height) {
+          this.y = canvas.height - this.height;
           this.vy = 0;
           this.onGround = true;
           this.setAnimation('idle');
@@ -110,7 +120,10 @@
       }
 
       draw(ctx) {
-        this.animations[this.currentAnimation].draw(ctx, this.x, this.y);
+        const img = this.animations[this.currentAnimation];
+        if (img.complete) {
+          ctx.drawImage(img, this.x, this.y, this.width, this.height);
+        }
       }
     }
 
@@ -176,9 +189,7 @@
 
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       platforms.forEach(plat => plat.draw(ctx));
-
       player.draw(ctx);
     }
 
