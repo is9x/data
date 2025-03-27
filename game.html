@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Super Fun 2D Platformer</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    canvas {
+      display: block;
+      background-color: #87CEEB;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script src="https://unpkg.com/gifler@0.1.0/gifler.min.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const playerAnimations = {
+      idle: '__Idle.gif',
+      run: '__Run.gif',
+      jump: '__Jump.gif',
+      attack: '__Attack.gif',
+      death: '__Death.gif'
+    };
+
+    class Player {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.speed = 300;
+        this.jumpPower = -700;
+        this.gravity = 2000;
+        this.onGround = false;
+        this.currentAnimation = 'idle';
+        this.animations = {};
+        this.loadAnimations();
+      }
+
+      loadAnimations() {
+        for (const [key, src] of Object.entries(playerAnimations)) {
+          this.animations[key] = gifler(src);
+        }
+      }
+
+      setAnimation(animation) {
+        if (this.currentAnimation !== animation) {
+          this.currentAnimation = animation;
+          this.animations[this.currentAnimation].reset();
+        }
+      }
+
+      update(delta, platforms) {
+        if (input.left) {
+          this.vx = -this.speed;
+          this.setAnimation('run');
+        } else if (input.right) {
+          this.vx = this.speed;
+          this.setAnimation('run');
+        } else {
+          this.vx = 0;
+          this.setAnimation('idle');
+        }
+
+        if (input.up && this.onGround) {
+          this.vy = this.jumpPower;
+          this.onGround = false;
+          this.setAnimation('jump');
+        }
+
+        this.vy += this.gravity * delta;
+
+        this.x += this.vx * delta;
+        this.y += this.vy * delta;
+
+        this.onGround = false;
+        for (let plat of platforms) {
+          if (this.x < plat.x + plat.width &&
+              this.x + 50 > plat.x &&
+              this.y < plat.y + plat.height &&
+              this.y + 50 > plat.y) {
+            if (this.vy > 0 && this.y + 50 - plat.y < 40) {
+              this.y = plat.y - 50;
+              this.vy = 0;
+              this.onGround = true;
+              this.setAnimation('idle');
+            }
+          }
+        }
+
+        if (this.x < 0) this.x = 0;
+        if (this.x + 50 > canvas.width) this.x = canvas.width - 50;
+        if (this.y + 50 > canvas.height) {
+          this.y = canvas.height - 50;
+          this.vy = 0;
+          this.onGround = true;
+          this.setAnimation('idle');
+        }
+      }
+
+      draw(ctx) {
+        this.animations[this.currentAnimation].draw(ctx, this.x, this.y);
+      }
+    }
+
+    class Platform {
+      constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = 'saddlebrown';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+      }
+    }
+
+    const input = {
+      left: false,
+      right: false,
+      up: false
+    };
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'a') input.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd') input.right = true;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') input.up = true;
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'a') input.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd') input.right = false;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') input.up = false;
+    });
+
+    let player;
+    let platforms = [];
+    let lastTime = 0;
+
+    function init() {
+      player = new Player(100, canvas.height - 150);
+
+      platforms.push(new Platform(0, canvas.height - 20, canvas.width, 20));
+      platforms.push(new Platform(200, canvas.height - 150, 100, 20));
+      platforms.push(new Platform(400, canvas.height - 250, 100, 20));
+      platforms.push(new Platform(650, canvas.height - 350, 100, 20));
+      platforms.push(new Platform(900, canvas.height - 200, 150, 20));
+
+      window.requestAnimationFrame(gameLoop);
+    }
+
+    function gameLoop(timestamp) {
+      let delta = (timestamp - lastTime) / 1000;
+      lastTime = timestamp;
+      update(delta);
+      render();
+      window.requestAnimationFrame(gameLoop);
+    }
+
+    function update(delta) {
+      player.update(delta, platforms);
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      platforms.forEach(plat => plat.draw(ctx));
+
+      player.draw(ctx);
+    }
+
+    init();
+  </script>
+</body>
+</html>
