@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editable MHTML Viewer</title>
+</head>
+<body contenteditable="true">
+    <h1>Edit This Page</h1>
+    <script>
+        fetch('/src.mhtml')
+            .then(response => response.text())
+            .then(html => document.body.innerHTML = html)
+            .catch(error => console.error('Error loading file:', error));
+    </script>
+</body>
+</html>
