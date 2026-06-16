@@ -1,5 +1,5 @@
 -- https://github.com/LorekeeperZinnia/Dex
-
+-- Modified to add Run Remote
 --[[
 	Dex
 	Created by Moon
@@ -956,6 +956,7 @@ local EmbeddedModules = {
 				if presentClasses["TouchTransmitter"] then context:AddRegistered("FIRE_TOUCHTRANSMITTER", firetouchinterest == nil) end
 				if presentClasses["ClickDetector"] then context:AddRegistered("FIRE_CLICKDETECTOR", fireclickdetector == nil) end
 				if presentClasses["ProximityPrompt"] then context:AddRegistered("FIRE_PROXIMITYPROMPT", fireproximityprompt == nil) end
+				if presentClasses["RemoteEvent"] or presentClasses["RemoteFunction"] then context:AddRegistered("RUN_REMOTE") end
 
 				if presentClasses["Player"] then context:AddRegistered("SELECT_CHARACTER")context:AddRegistered("VIEW_PLAYER") end
 				if presentClasses["Players"] then
@@ -978,252 +979,548 @@ local EmbeddedModules = {
 				context:Show(Mouse.X, Mouse.Y)
 			end
 
-Explorer.InitRightClick = function()
-	local context = Lib.ContextMenu.new()
+			Explorer.InitRightClick = function()
+				local context = Lib.ContextMenu.new()
 
-	context:Register("CUT",{
-		Name = "Cut",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Cut",
-		DisabledIcon = "Cut_Disabled",
-		Shortcut = "Ctrl+X",
-		OnClick = function()
-			local destroy,clone = game.Destroy,game.Clone
-			local sList,newClipboard = selection.List,{}
-			local count = 1
-			for i = 1,#sList do
-				local inst = sList[i].Obj
-				local s,cloned = pcall(clone,inst)
-				if s and cloned then
-					newClipboard[count] = cloned
-					count = count + 1
-				end
-				pcall(destroy,inst)
-			end
-			clipboard = newClipboard
-			selection:Clear()
-		end
-	})
-
-	context:Register("COPY",{
-		Name = "Copy",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Copy",
-		DisabledIcon = "Copy_Disabled",
-		Shortcut = "Ctrl+C",
-		OnClick = function()
-			local clone = game.Clone
-			local sList,newClipboard = selection.List,{}
-			local count = 1
-			for i = 1,#sList do
-				local inst = sList[i].Obj
-				local s,cloned = pcall(clone,inst)
-				if s and cloned then
-					newClipboard[count] = cloned
-					count = count + 1
-				end
-			end
-			clipboard = newClipboard
-		end
-	})
-
-	context:Register("PASTE",{
-		Name = "Paste Into",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Paste",
-		DisabledIcon = "Paste_Disabled",
-		Shortcut = "Ctrl+Shift+V",
-		OnClick = function()
-			local sList = selection.List
-			local newSelection = {}
-			local count = 1
-			for i = 1,#sList do
-				local node = sList[i]
-				local inst = node.Obj
-				Explorer.MakeNodeVisible(node,true)
-				for c = 1,#clipboard do
-					local cloned = clipboard[c]:Clone()
-					if cloned then
-						cloned.Parent = inst
-						local clonedNode = nodes[cloned]
-						if clonedNode then newSelection[count] = clonedNode count = count + 1 end
+				context:Register("CUT",{Name = "Cut", IconMap = Explorer.MiscIcons, Icon = "Cut", DisabledIcon = "Cut_Disabled", Shortcut = "Ctrl+Z", OnClick = function()
+					local destroy,clone = game.Destroy,game.Clone
+					local sList,newClipboard = selection.List,{}
+					local count = 1
+					for i = 1,#sList do
+						local inst = sList[i].Obj
+						local s,cloned = pcall(clone,inst)
+						if s and cloned then
+							newClipboard[count] = cloned
+							count = count + 1
+						end
+						pcall(destroy,inst)
 					end
-				end
-			end
-			selection:SetTable(newSelection)
+					clipboard = newClipboard
+					selection:Clear()
+				end})
 
-			if #newSelection > 0 then
-				Explorer.ViewNode(newSelection[1])
-			end
-		end
-	})
-
-	context:Register("DUPLICATE",{
-		Name = "Duplicate",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Copy",
-		DisabledIcon = "Copy_Disabled",
-		Shortcut = "Ctrl+D",
-		OnClick = function()
-			local clone = game.Clone
-			local sList = selection.List
-			local newSelection = {}
-			local count = 1
-			for i = 1,#sList do
-				local node = sList[i]
-				local inst = node.Obj
-				local instPar = node.Parent and node.Parent.Obj
-				Explorer.MakeNodeVisible(node)
-				local s,cloned = pcall(clone,inst)
-				if s and cloned then
-					cloned.Parent = instPar
-					local clonedNode = nodes[cloned]
-					if clonedNode then newSelection[count] = clonedNode count = count + 1 end
-				end
-			end
-
-			selection:SetTable(newSelection)
-			if #newSelection > 0 then
-				Explorer.ViewNode(newSelection[1])
-			end
-		end
-	})
-
-	context:Register("DELETE",{
-		Name = "Delete",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Delete",
-		DisabledIcon = "Delete_Disabled",
-		Shortcut = "Del",
-		OnClick = function()
-			local destroy = game.Destroy
-			local sList = selection.List
-			for i = 1,#sList do
-				pcall(destroy,sList[i].Obj)
-			end
-			selection:Clear()
-		end
-	})
-
-	context:Register("RENAME",{
-		Name = "Rename",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Rename",
-		DisabledIcon = "Rename_Disabled",
-		Shortcut = "F2",
-		OnClick = function()
-			local sList = selection.List
-			if sList[1] then
-				Explorer.SetRenamingNode(sList[1])
-			end
-		end
-	})
-
-	-- ==================== NEW: RUN REMOTE ====================
-	context:Register("RUN_REMOTE",{
-		Name = "Run Remote",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Play",
-		OnClick = function()
-			local sList = selection.List
-			for i = 1,#sList do
-				local node = sList[i]
-				local obj = node.Obj
-				pcall(function()
-					if obj:IsA("RemoteEvent") then
-						obj:FireServer()
-						print("Fired RemoteEvent:", obj:GetFullName())
-					elseif obj:IsA("RemoteFunction") then
-						local result = obj:InvokeServer()
-						print("Invoked RemoteFunction:", obj:GetFullName(), "→", result)
+				context:Register("COPY",{Name = "Copy", IconMap = Explorer.MiscIcons, Icon = "Copy", DisabledIcon = "Copy_Disabled", Shortcut = "Ctrl+C", OnClick = function()
+					local clone = game.Clone
+					local sList,newClipboard = selection.List,{}
+					local count = 1
+					for i = 1,#sList do
+						local inst = sList[i].Obj
+						local s,cloned = pcall(clone,inst)
+						if s and cloned then
+							newClipboard[count] = cloned
+							count = count + 1
+						end
 					end
-				end)
-			end
-		end,
-		EnabledCheck = function() -- Only show for remotes
-			local sList = selection.List
-			for i = 1,#sList do
-				local obj = sList[i].Obj
-				if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-					return true
+					clipboard = newClipboard
+				end})
+
+				context:Register("PASTE",{Name = "Paste Into", IconMap = Explorer.MiscIcons, Icon = "Paste", DisabledIcon = "Paste_Disabled", Shortcut = "Ctrl+Shift+V", OnClick = function()
+					local sList = selection.List
+					local newSelection = {}
+					local count = 1
+					for i = 1,#sList do
+						local node = sList[i]
+						local inst = node.Obj
+						Explorer.MakeNodeVisible(node,true)
+						for c = 1,#clipboard do
+							local cloned = clipboard[c]:Clone()
+							if cloned then
+								cloned.Parent = inst
+								local clonedNode = nodes[cloned]
+								if clonedNode then newSelection[count] = clonedNode count = count + 1 end
+							end
+						end
+					end
+					selection:SetTable(newSelection)
+
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					end
+				end})
+
+				context:Register("DUPLICATE",{Name = "Duplicate", IconMap = Explorer.MiscIcons, Icon = "Copy", DisabledIcon = "Copy_Disabled", Shortcut = "Ctrl+D", OnClick = function()
+					local clone = game.Clone
+					local sList = selection.List
+					local newSelection = {}
+					local count = 1
+					for i = 1,#sList do
+						local node = sList[i]
+						local inst = node.Obj
+						local instPar = node.Parent and node.Parent.Obj
+						Explorer.MakeNodeVisible(node)
+						local s,cloned = pcall(clone,inst)
+						if s and cloned then
+							cloned.Parent = instPar
+							local clonedNode = nodes[cloned]
+							if clonedNode then newSelection[count] = clonedNode count = count + 1 end
+						end
+					end
+
+					selection:SetTable(newSelection)
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					end
+				end})
+
+				context:Register("DELETE",{Name = "Delete", IconMap = Explorer.MiscIcons, Icon = "Delete", DisabledIcon = "Delete_Disabled", Shortcut = "Del", OnClick = function()
+					local destroy = game.Destroy
+					local sList = selection.List
+					for i = 1,#sList do
+						pcall(destroy,sList[i].Obj)
+					end
+					selection:Clear()
+				end})
+
+				context:Register("RENAME",{Name = "Rename", IconMap = Explorer.MiscIcons, Icon = "Rename", DisabledIcon = "Rename_Disabled", Shortcut = "F2", OnClick = function()
+					local sList = selection.List
+					if sList[1] then
+						Explorer.SetRenamingNode(sList[1])
+					end
+				end})
+
+				context:Register("GROUP",{Name = "Group", IconMap = Explorer.MiscIcons, Icon = "Group", DisabledIcon = "Group_Disabled", Shortcut = "Ctrl+G", OnClick = function()
+					local sList = selection.List
+					if #sList == 0 then return end
+
+					local model = Instance.new("Model",sList[#sList].Obj.Parent)
+					for i = 1,#sList do
+						pcall(function() sList[i].Obj.Parent = model end)
+					end
+
+					if nodes[model] then
+						selection:Set(nodes[model])
+						Explorer.ViewNode(nodes[model])
+					end
+				end})
+
+				context:Register("UNGROUP",{Name = "Ungroup", IconMap = Explorer.MiscIcons, Icon = "Ungroup", DisabledIcon = "Ungroup_Disabled", Shortcut = "Ctrl+U", OnClick = function()
+					local newSelection = {}
+					local count = 1
+					local isa = game.IsA
+
+					local function ungroup(node)
+						local par = node.Parent.Obj
+						local ch = {}
+						local chCount = 1
+
+						for i = 1,#node do
+							local n = node[i]
+							newSelection[count] = n
+							ch[chCount] = n
+							count = count + 1
+							chCount = chCount + 1
+						end
+
+						for i = 1,#ch do
+							pcall(function() ch[i].Obj.Parent = par end)
+						end
+
+						node.Obj:Destroy()
+					end
+
+					for i,v in next,selection.List do
+						if isa(v.Obj,"Model") then
+							ungroup(v)
+						end
+					end
+
+					selection:SetTable(newSelection)
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					end
+				end})
+
+				context:Register("SELECT_CHILDREN",{Name = "Select Children", IconMap = Explorer.MiscIcons, Icon = "SelectChildren", DisabledIcon = "SelectChildren_Disabled", OnClick = function()
+					local newSelection = {}
+					local count = 1
+					local sList = selection.List
+
+					for i = 1,#sList do
+						local node = sList[i]
+						for ind = 1,#node do
+							local cNode = node[ind]
+							if ind == 1 then Explorer.MakeNodeVisible(cNode) end
+
+							newSelection[count] = cNode
+							count = count + 1
+						end
+					end
+
+					selection:SetTable(newSelection)
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					else
+						Explorer.Refresh()
+					end
+				end})
+
+				context:Register("JUMP_TO_PARENT",{Name = "Jump to Parent", IconMap = Explorer.MiscIcons, Icon = "JumpToParent", OnClick = function()
+					local newSelection = {}
+					local count = 1
+					local sList = selection.List
+
+					for i = 1,#sList do
+						local node = sList[i]
+						if node.Parent then
+							newSelection[count] = node.Parent
+							count = count + 1
+						end
+					end
+
+					selection:SetTable(newSelection)
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					else
+						Explorer.Refresh()
+					end
+				end})
+
+				context:Register("TELEPORT_TO",{Name = "Teleport To", IconMap = Explorer.MiscIcons, Icon = "TeleportTo", OnClick = function()
+					local sList = selection.List
+					local plrRP = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+
+					if not plrRP then return end
+
+					for _,node in next, sList do
+						local Obj = node.Obj
+
+						if Obj:IsA("BasePart") then
+							if Obj.CanCollide then
+								plr.Character:MoveTo(Obj.Position)
+							else
+								plrRP.CFrame = CFrame.new(Obj.Position + Settings.Explorer.TeleportToOffset)
+							end
+							break
+						elseif Obj:IsA("Model") then
+							if Obj.PrimaryPart then
+								if Obj.PrimaryPart.CanCollide then
+									plr.Character:MoveTo(Obj.PrimaryPart.Position)
+								else
+									plrRP.CFrame = CFrame.new(Obj.PrimaryPart.Position + Settings.Explorer.TeleportToOffset)
+								end
+								break
+							else
+								local part = Obj:FindFirstChildWhichIsA("BasePart", true)
+								if part and nodes[part] then
+									if part.CanCollide then
+										plr.Character:MoveTo(part.Position)
+									else
+										plrRP.CFrame = CFrame.new(part.Position + Settings.Explorer.TeleportToOffset)
+									end
+									break
+								elseif Obj.WorldPivot then
+									plrRP.CFrame = Obj.WorldPivot
+								end
+							end
+						end
+					end
+				end})
+
+				local OldAnimation
+				context:Register("PLAY_TWEEN",{Name = "Play Tween", IconMap = Explorer.MiscIcons, Icon = "Play", OnClick = function()
+					local sList = selection.List
+
+					for i = 1, #sList do
+						local node = sList[i]
+						local Obj = node.Obj
+
+						if Obj:IsA("Tween") then Obj:Play() end
+					end
+				end})
+
+				local OldAnimation
+				context:Register("LOAD_ANIMATION",{Name = "Load Animation", IconMap = Explorer.MiscIcons, Icon = "Play", OnClick = function()
+					local sList = selection.List
+
+					local Humanoid = plr.Character and plr.Character:FindFirstChild("Humanoid")
+					if not Humanoid then return end
+
+					for i = 1, #sList do
+						local node = sList[i]
+						local Obj = node.Obj
+
+						if Obj:IsA("Animation") then
+							if OldAnimation then OldAnimation:Stop() end
+							OldAnimation = Humanoid:LoadAnimation(Obj)
+							OldAnimation:Play()
+							break
+						end
+					end
+				end})
+
+				context:Register("STOP_ANIMATION",{Name = "Stop Animation", IconMap = Explorer.MiscIcons, Icon = "Pause", OnClick = function()
+					local sList = selection.List
+
+					local Humanoid = plr.Character and plr.Character:FindFirstChild("Humanoid")
+					if not Humanoid then return end
+
+					for i = 1, #sList do
+						local node = sList[i]
+						local Obj = node.Obj
+
+						if Obj:IsA("Animation") then
+							if OldAnimation then OldAnimation:Stop() end
+							Humanoid:LoadAnimation(Obj):Stop()
+							break
+						end
+					end
+				end})
+
+				context:Register("EXPAND_ALL",{Name = "Expand All", OnClick = function()
+					local sList = selection.List
+
+					local function expand(node)
+						expanded[node] = true
+						for i = 1,#node do
+							if #node[i] > 0 then
+								expand(node[i])
+							end
+						end
+					end
+
+					for i = 1,#sList do
+						expand(sList[i])
+					end
+
+					Explorer.ForceUpdate()
+				end})
+
+				context:Register("COLLAPSE_ALL",{Name = "Collapse All", OnClick = function()
+					local sList = selection.List
+
+					local function expand(node)
+						expanded[node] = nil
+						for i = 1,#node do
+							if #node[i] > 0 then
+								expand(node[i])
+							end
+						end
+					end
+
+					for i = 1,#sList do
+						expand(sList[i])
+					end
+
+					Explorer.ForceUpdate()
+				end})
+
+				context:Register("CLEAR_SEARCH_AND_JUMP_TO",{Name = "Clear Search and Jump to", OnClick = function()
+					local newSelection = {}
+					local count = 1
+					local sList = selection.List
+
+					for i = 1,#sList do
+						newSelection[count] = sList[i]
+						count = count + 1
+					end
+
+					selection:SetTable(newSelection)
+					Explorer.ClearSearch()
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					end
+				end})
+
+				-- this code is very bad but im lazy and it works so cope
+				local clth = function(str)
+					if str:sub(1, 28) == "game:GetService(\"Workspace\")" then str = str:gsub("game:GetService%(\"Workspace\"%)", "workspace", 1) end
+					if str:sub(1, 27 + #plr.Name) == "game:GetService(\"Players\")." .. plr.Name then str = str:gsub("game:GetService%(\"Players\"%)." .. plr.Name, "game:GetService(\"Players\").LocalPlayer", 1) end
+					return str
 				end
-			end
-			return false
+
+				context:Register("COPY_PATH",{Name = "Copy Path", IconMap = Explorer.ClassIcons, Icon = 50, OnClick = function()
+					local sList = selection.List
+					if #sList == 1 then
+						env.setclipboard(clth(Explorer.GetInstancePath(sList[1].Obj)))
+					elseif #sList > 1 then
+						local resList = {"{"}
+						local count = 2
+						for i = 1,#sList do
+							local path = "\t"..clth(Explorer.GetInstancePath(sList[i].Obj))..","
+							if #path > 0 then
+								resList[count] = path
+								count = count+1
+							end
+						end
+						resList[count] = "}"
+						env.setclipboard(table.concat(resList,"\n"))
+					end
+				end})
+
+				context:Register("INSERT_OBJECT",{Name = "Insert Object", IconMap = Explorer.MiscIcons, Icon = "InsertObject", OnClick = function()
+					local mouse = Main.Mouse
+					local x,y = Explorer.LastRightClickX or mouse.X, Explorer.LastRightClickY or mouse.Y
+					Explorer.InsertObjectContext:Show(x,y)
+				end})
+
+				--[[context:Register("CALL_FUNCTION",{Name = "Call Function", IconMap = Explorer.ClassIcons, Icon = 66, OnClick = function()
+
+				end})
+
+				context:Register("GET_REFERENCES",{Name = "Get Lua References", IconMap = Explorer.ClassIcons, Icon = 34, OnClick = function()
+
+				end})
+
+				context:Register("SAVE_INST",{Name = "Save to File", IconMap = Explorer.MiscIcons, Icon = "Save", OnClick = function()
+
+				end})
+
+                context:Register("VIEW_CONNECTIONS",{Name = "View Connections", OnClick = function()
+                    
+                end})
+
+				context:Register("VIEW_API",{Name = "View API Page", IconMap = Explorer.MiscIcons, Icon = "Reference", OnClick = function()
+
+				end})]]
+
+				context:Register("VIEW_OBJECT",{Name = "View Object (Right click to reset)", IconMap = Explorer.ClassIcons, Icon = 5, OnClick = function()
+					local sList = selection.List
+					local isa = game.IsA
+
+					for i = 1,#sList do
+						local node = sList[i]
+
+						if isa(node.Obj,"BasePart") or isa(node.Obj, "Model") then
+							workspace.CurrentCamera.CameraSubject = node.Obj
+							break
+						end
+					end
+				end, OnRightClick = function()
+					workspace.CurrentCamera.CameraSubject = plr.Character
+				end})
+
+				context:Register("FIRE_TOUCHTRANSMITTER",{Name = "Fire TouchTransmitter", IconMap = Explorer.ClassIcons, Icon = 37, OnClick = function()
+					local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+					if not hrp then return end
+					for _, v in ipairs(selection.List) do if v.Obj and v.Obj:IsA("TouchTransmitter") then firetouchinterest(hrp, v.Obj.Parent, 0) end end
+				end})
+
+				context:Register("FIRE_CLICKDETECTOR",{Name = "Fire ClickDetector", IconMap = Explorer.ClassIcons, Icon = 41, OnClick = function()
+					local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+					if not hrp then return end
+					for _, v in ipairs(selection.List) do if v.Obj and v.Obj:IsA("ClickDetector") then fireclickdetector(v.Obj) end end
+				end})
+
+				context:Register("FIRE_PROXIMITYPROMPT",{Name = "Fire ProximityPrompt", IconMap = Explorer.ClassIcons, Icon = 124, OnClick = function()
+					local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+					if not hrp then return end
+					for _, v in ipairs(selection.List) do if v.Obj and v.Obj:IsA("ProximityPrompt") then fireproximityprompt(v.Obj) end end
+				end})
+
+				context:Register("RUN_REMOTE",{Name = "Run remote", IconMap = Explorer.MiscIcons, Icon = 19, OnClick = function()
+	for _, v in ipairs(selection.List) do 
+		if v.Obj then
+			if v.Obj:IsA("RemoteEvent") then 
+				v.Obj:FireServer() 
+			elseif v.Obj:IsA("RemoteFunction") then
+				-- Wrapped in task.spawn so a yielding InvokeServer doesn't hang the UI
+				task.spawn(function() pcall(function() v.Obj:InvokeServer() end) end)
+			end 
 		end
-	})
+	end
+end})
 
-	-- ==================== REST OF ORIGINAL MENU ====================
+				context:Register("VIEW_SCRIPT",{Name = "View Script", IconMap = Explorer.MiscIcons, Icon = "ViewScript", OnClick = function()
+					local scr = selection.List[1] and selection.List[1].Obj
+					if scr then ScriptViewer.ViewScript(scr) end
+				end})
 
-	context:Register("GROUP",{
-		Name = "Group",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Group",
-		DisabledIcon = "Group_Disabled",
-		Shortcut = "Ctrl+G",
-		OnClick = function()
-			local sList = selection.List
-			if #sList == 0 then return end
+				context:Register("SAVE_SCRIPT",{Name = "Save Script", IconMap = Explorer.MiscIcons, Icon = "Save", OnClick = function()
+					for _, v in next, selection.List do
+						if v.Obj:IsA("LuaSourceContainer") and env.isViableDecompileScript(v.Obj) then
+							local success, source = pcall(env.decompile, v.Obj)
+							if not success or not source then source = ("-- DEX - %s failed to decompile %s"):format(env.executor, v.Obj.ClassName) end
+							local fileName = ("%i.%s.%s.Source.txt"):format(game.PlaceId, v.Obj.ClassName, env.parsefile(v.Obj.Name))
+							env.writefile(fileName, source)
+							task.wait(0.2)
+						end
+					end
+				end})
 
-			local model = Instance.new("Model",sList[#sList].Obj.Parent)
-			for i = 1,#sList do
-				pcall(function() sList[i].Obj.Parent = model end)
+				context:Register("SAVE_BYTECODE",{Name = "Save Script Bytecode", IconMap = Explorer.MiscIcons, Icon = "Save", OnClick = function()
+					for _, v in next, selection.List do
+						if v.Obj:IsA("LuaSourceContainer") and env.isViableDecompileScript(v.Obj) then
+							local success, bytecode = pcall(getscriptbytecode, v.Obj)
+							if success and type(bytecode) == "string" then
+								local fileName = ("%i.%s.%s.Bytecode.txt"):format(game.PlaceId, v.Obj.ClassName, env.parsefile(v.Obj.Name))
+								env.writefile(fileName, bytecode)
+								task.wait(0.2)
+							end
+						end
+					end
+				end})
+
+				context:Register("SELECT_CHARACTER",{Name = "Select Character", IconMap = Explorer.ClassIcons, Icon = 9, OnClick = function()
+					local newSelection = {}
+					local count = 1
+					local sList = selection.List
+					local isa = game.IsA
+
+					for i = 1,#sList do
+						local node = sList[i]
+						if isa(node.Obj,"Player") and nodes[node.Obj.Character] then
+							newSelection[count] = nodes[node.Obj.Character]
+							count = count + 1
+						end
+					end
+
+					selection:SetTable(newSelection)
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					else
+						Explorer.Refresh()
+					end
+				end})
+
+				context:Register("VIEW_PLAYER",{Name = "View Player", IconMap = Explorer.ClassIcons, Icon = 5, OnClick = function()
+					local newSelection = {}
+					local count = 1
+					local sList = selection.List
+					local isa = game.IsA
+
+					for i = 1,#sList do
+						local node = sList[i]
+						local Obj = node.Obj
+						if Obj:IsA("Player") and Obj.Character then
+							workspace.CurrentCamera.CameraSubject = Obj.Character
+							break
+						end
+					end
+				end})
+
+				context:Register("SELECT_LOCAL_PLAYER",{Name = "Select Local Player", IconMap = Explorer.ClassIcons, Icon = 9, OnClick = function()
+					pcall(function() if nodes[plr] then selection:Set(nodes[plr]) Explorer.ViewNode(nodes[plr]) end end)
+				end})
+
+				context:Register("SELECT_ALL_CHARACTERS",{Name = "Select All Characters", IconMap = Explorer.ClassIcons, Icon = 2, OnClick = function()
+					local newSelection = {}
+					local sList = selection.List
+
+					for i,v in next, service.Players:GetPlayers() do
+						if v.Character and nodes[v.Character] then
+							if i == 1 then Explorer.MakeNodeVisible(v.Character) end
+							table.insert(newSelection, nodes[v.Character])
+						end
+					end
+
+					selection:SetTable(newSelection)
+					if #newSelection > 0 then
+						Explorer.ViewNode(newSelection[1])
+					else
+						Explorer.Refresh()
+					end
+				end})
+
+				context:Register("REFRESH_NIL",{Name = "Refresh Nil Instances", OnClick = function()
+					Explorer.RefreshNilInstances()
+				end})
+
+				context:Register("HIDE_NIL",{Name = "Hide Nil Instances", OnClick = function()
+					Explorer.HideNilInstances()
+				end})
+
+				Explorer.RightClickContext = context
 			end
-
-			if nodes[model] then
-				selection:Set(nodes[model])
-				Explorer.ViewNode(nodes[model])
-			end
-		end
-	})
-
-	context:Register("UNGROUP",{
-		Name = "Ungroup",
-		IconMap = Explorer.MiscIcons,
-		Icon = "Ungroup",
-		DisabledIcon = "Ungroup_Disabled",
-		Shortcut = "Ctrl+U",
-		OnClick = function()
-			local newSelection = {}
-			local count = 1
-			local isa = game.IsA
-
-			local function ungroup(node)
-				local par = node.Parent.Obj
-				local ch = {}
-				local chCount = 1
-
-				for i = 1,#node do
-					local n = node[i]
-					newSelection[count] = n
-					ch[chCount] = n
-					count = count + 1
-					chCount = chCount + 1
-				end
-
-				for i = 1,#ch do
-					pcall(function() ch[i].Obj.Parent = par end)
-				end
-
-				node.Obj:Destroy()
-			end
-
-			for i,v in next,selection.List do
-				if isa(v.Obj,"Model") then
-					ungroup(v)
-				end
-			end
-
-			selection:SetTable(newSelection)
-			if #newSelection > 0 then
-				Explorer.ViewNode(newSelection[1])
-			end
-		end
-	})
-
-	-- ... (the rest of your original context registrations go here - Select Children, Jump to Parent, Teleport, etc.)
-
-	Explorer.RightClickContext = context
-end
 
 			Explorer.HideNilInstances = function()
 				table.clear(nilMap)
@@ -11916,7 +12213,7 @@ Main = (function()
 			{8,"Frame",{BackgroundColor3=Color3.new(0.20392157137394,0.20392157137394,0.20392157137394),BorderSizePixel=0,Name="ProgressBar",Parent={3},Position=UDim2.new(0,110,0,145),Size=UDim2.new(0,0,0,4),}},
 			{9,"Frame",{BackgroundColor3=Color3.new(0.2392156869173,0.56078433990479,0.86274510622025),BorderSizePixel=0,Name="Bar",Parent={8},Size=UDim2.new(0,0,1,0),}},
 			{10,"ImageLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Image="rbxassetid://2764171053",ImageColor3=Color3.new(0.17647059261799,0.17647059261799,0.17647059261799),Parent={8},ScaleType=1,Size=UDim2.new(1,0,1,0),SliceCenter=Rect.new(2,2,254,254),}},
-			{11,"TextLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Font=3,Name="Creator",Parent={2},Position=UDim2.new(1,-110,1,-20),Size=UDim2.new(0,105,0,20),Text="Developed by Moon",TextColor3=Color3.new(1,1,1),TextSize=14,TextXAlignment=1,}},
+			{11,"TextLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Font=3,Name="Creator",Parent={2},Position=UDim2.new(1,-110,1,-20),Size=UDim2.new(0,105,0,20),Text="Modified by is9x",TextColor3=Color3.new(1,1,1),TextSize=14,TextXAlignment=1,}},
 			{12,"UIGradient",{Parent={11},Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1,0),NumberSequenceKeypoint.new(1,1,0),}),}},
 			{13,"TextLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Font=3,Name="Version",Parent={2},Position=UDim2.new(1,-110,1,-35),Size=UDim2.new(0,105,0,20),Text=Main.Version,TextColor3=Color3.new(1,1,1),TextSize=14,TextXAlignment=1,}},
 			{14,"UIGradient",{Parent={13},Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1,0),NumberSequenceKeypoint.new(1,1,0),}),}},
